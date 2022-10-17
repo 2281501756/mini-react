@@ -11,29 +11,40 @@ const createDOM = (fiber) => {
   return dom
 }
 
+const commitDOM = () => {
+  commit(wipRoot)
+  wipRoot = null
+}
+const commit = (fiber) => {
+  if (!fiber) return
+  if (fiber.parent) fiber.parent.dom.appendChild(fiber.dom)
+  commit(fiber.sibling)
+  commit(fiber.children)
+}
 const render = (element, container) => {
-  nextUnitOfWork = {
+  wipRoot = {
     dom: container,
     props: {
       children: [element],
     },
   }
+  nextUnitOfWork = wipRoot
 }
 
-let nextUnitOfWork = null
+let nextUnitOfWork = null,
+  wipRoot = null
 const wordloop = (deadline) => {
   let shouldYield = false
   while (nextUnitOfWork && !shouldYield) {
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork)
     shouldYield = deadline.timeRemaining() < 1
   }
+  if (!nextUnitOfWork && wipRoot) commitDOM()
   requestIdleCallback(wordloop)
 }
 requestIdleCallback(wordloop)
 const performUnitOfWork = (fiber) => {
   if (!fiber.dom) fiber.dom = createDOM(fiber)
-  if (fiber.parent) fiber.parent.dom.appendChild(fiber.dom)
-
   const children = fiber.props.children
   let index = 0,
     prevSibling = null
