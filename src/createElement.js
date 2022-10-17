@@ -1,4 +1,4 @@
-export const createElement = (type, props, ...children) => {
+const createElement = (type, props, ...children) => {
   return {
     type,
     props: {
@@ -19,3 +19,5 @@ const createTextElement = (text) => {
     },
   }
 }
+
+export default createElement
