@@ -7,6 +7,9 @@ const createElement = (type, props, ...children) => {
         return typeof child === 'object' ? child : createTextElement(child)
       }),
     },
+    dom: null,
+    sibling: null,
+    parent: null,
   }
 }
 
@@ -17,6 +20,9 @@ const createTextElement = (text) => {
       nodeValue: text,
       children: [],
     },
+    dom: null,
+    sibling: null,
+    parent: null,
   }
 }
 
