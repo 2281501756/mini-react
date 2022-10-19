@@ -21,16 +21,25 @@ const commitDOM = () => {
 }
 const commit = (fiber) => {
   if (!fiber) return
-  const parent = fiber.parent.dom
+  let parentFiber = fiber.parent
+  while (!parentFiber.dom) parentFiber = parentFiber.parent
+  const parent = parentFiber.dom
   if (fiber.effectTag === 'ADD' && fiber.dom) {
     parent.appendChild(fiber.dom)
   } else if (fiber.effectTag === 'DELETE' && fiber.dom) {
-    parent.removeChild(fiber.dom)
+    parentRemoveDom(fiber, parent)
   } else if (fiber.effectTag === 'UPDATE' && fiber.dom) {
     updateDom(fiber.dom, fiber.alternate.props, fiber.props)
   }
   commit(fiber.sibling)
   commit(fiber.children)
+}
+const parentRemoveDom = (fiber, parentDom) => {
+  if (fiber.dom) {
+    parentDom.removeChild(fiber.dom)
+  } else {
+    parentRemoveDom(fiber.children, parentDom)
+  }
 }
 const isEvent = (key) => key.startsWith('on')
 const updateDom = (dom, prevProps, nextProps) => {
@@ -86,16 +95,25 @@ const wordloop = (deadline) => {
 }
 requestIdleCallback(wordloop)
 const performUnitOfWork = (fiber) => {
-  if (!fiber.dom) fiber.dom = createDOM(fiber)
-  const children = fiber.props.children
+  if (fiber.type instanceof Function) {
+    updateFunctionComponent(fiber)
+  } else updateHostComponent(fiber)
 
-  reconcileChildren(fiber, children)
   if (fiber.children) return fiber.children
   let nextFiber = fiber
   while (nextFiber) {
     if (nextFiber.sibling) return nextFiber.sibling
     nextFiber = nextFiber.parent
   }
+}
+const updateHostComponent = (fiber) => {
+  if (!fiber.dom) fiber.dom = createDOM(fiber)
+  const children = fiber.props.children
+  reconcileChildren(fiber, children)
+}
+const updateFunctionComponent = (fiber) => {
+  const children = [fiber.type(fiber.props)]
+  reconcileChildren(fiber, children)
 }
 const reconcileChildren = (wipFiber, elements) => {
   let index = 0,
