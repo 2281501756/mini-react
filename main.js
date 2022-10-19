@@ -1,13 +1,24 @@
 import createElement from './src/createElement'
 import render from './src/render'
 
-render(
-  createElement(
-    'h1',
-    { style: 'color: red' },
-    createElement('h2', { style: 'color: blue' }, 'h2标签'),
-    createElement('a', { href: 'http://baidu.com' }, '百度链接'),
-    'h1标签'
-  ),
-  document.querySelector('#app')
-)
+const handleInput = (e) => {
+  r(e.target.value)
+}
+
+const r = (value) => {
+  render(
+    createElement(
+      'div',
+      {},
+      createElement('input', { oninput: handleInput }),
+      createElement('div', null, value)
+    ),
+    document.querySelector('#app')
+  )
+}
+
+r('hello world')
+
+setTimeout(() => {
+  render(createElement('div', null, 'Hello world'))
+}, 3000)

@@ -12,14 +12,52 @@ const createDOM = (fiber) => {
 }
 
 const commitDOM = () => {
-  commit(wipRoot)
+  deleteList.forEach((fiber) => {
+    commit(fiber)
+  })
+  commit(wipRoot.children)
+  currenRoot = wipRoot
   wipRoot = null
 }
 const commit = (fiber) => {
   if (!fiber) return
-  if (fiber.parent) fiber.parent.dom.appendChild(fiber.dom)
+  const parent = fiber.parent.dom
+  if (fiber.effectTag === 'ADD' && fiber.dom) {
+    parent.appendChild(fiber.dom)
+  } else if (fiber.effectTag === 'DELETE' && fiber.dom) {
+    parent.removeChild(fiber.dom)
+  } else if (fiber.effectTag === 'UPDATE' && fiber.dom) {
+    updateDom(fiber.dom, fiber.alternate.props, fiber.props)
+  }
   commit(fiber.sibling)
   commit(fiber.children)
+}
+const isEvent = (key) => key.startsWith('on')
+const updateDom = (dom, prevProps, nextProps) => {
+  Object.keys(prevProps)
+    .filter(isEvent)
+    .filter((key) => !(key in nextProps) || prevProps[key] !== nextProps[key])
+    .forEach((key) => {
+      const name = key.toLowerCase().substring(2)
+      dom.removeEventListener(name, prevProps[key])
+    })
+  Object.keys(nextProps)
+    .filter(isEvent)
+    .filter((key) => nextProps[key] !== prevProps[key])
+    .forEach((key) => {
+      const name = key.toLowerCase().substring(2)
+      dom.addEventListener(name, nextProps[key])
+    })
+
+  Object.keys(prevProps)
+    .filter((key) => key !== 'children')
+    .filter((key) => !(key in nextProps))
+    .forEach((key) => (dom[key] = ''))
+
+  Object.keys(nextProps)
+    .filter((key) => key !== 'children')
+    .filter((key) => nextProps[key] !== prevProps[key])
+    .forEach((key) => (dom[key] = nextProps[key]))
 }
 const render = (element, container) => {
   wipRoot = {
@@ -27,12 +65,16 @@ const render = (element, container) => {
     props: {
       children: [element],
     },
+    alternate: currenRoot,
   }
+  deleteList = []
   nextUnitOfWork = wipRoot
 }
 
 let nextUnitOfWork = null,
-  wipRoot = null
+  wipRoot = null,
+  currenRoot = null,
+  deleteList = null
 const wordloop = (deadline) => {
   let shouldYield = false
   while (nextUnitOfWork && !shouldYield) {
@@ -46,26 +88,55 @@ requestIdleCallback(wordloop)
 const performUnitOfWork = (fiber) => {
   if (!fiber.dom) fiber.dom = createDOM(fiber)
   const children = fiber.props.children
-  let index = 0,
-    prevSibling = null
-  while (index < children.length) {
-    const t = children[index]
-    const newFiber = {
-      dom: null,
-      props: t.props,
-      parent: fiber,
-      type: t.type,
-    }
-    if (index === 0) fiber.children = newFiber
-    else prevSibling.sibling = newFiber
-    prevSibling = newFiber
-    index++
-  }
+
+  reconcileChildren(fiber, children)
   if (fiber.children) return fiber.children
   let nextFiber = fiber
   while (nextFiber) {
     if (nextFiber.sibling) return nextFiber.sibling
     nextFiber = nextFiber.parent
+  }
+}
+const reconcileChildren = (wipFiber, elements) => {
+  let index = 0,
+    prevSibling = null,
+    oldFiber = wipFiber.alternate && wipFiber.alternate.children
+  while (index < elements.length || oldFiber) {
+    const element = elements[index]
+    const sameType = element && oldFiber && oldFiber.type === element.type
+    let newFiber = null
+    if (sameType) {
+      // update
+      newFiber = {
+        dom: oldFiber.dom,
+        type: oldFiber.type,
+        props: element.props,
+        parent: wipFiber,
+        alternate: oldFiber,
+        effectTag: 'UPDATE',
+      }
+    } else if (element && !sameType) {
+      // add
+      newFiber = {
+        dom: null,
+        type: element.type,
+        props: element.props,
+        parent: wipFiber,
+        alternate: null,
+        effectTag: 'ADD',
+      }
+    } else if (oldFiber && sameType) {
+      // remove
+      deleteList.push(oldFiber)
+      oldFiber.effectTag = 'DELETE'
+    }
+    if (index === 0) wipFiber.children = newFiber
+    else prevSibling.sibling = newFiber
+
+    prevSibling = newFiber
+
+    index++
+    if (oldFiber) oldFiber = oldFiber.sibling
   }
 }
 
