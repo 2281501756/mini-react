@@ -16,7 +16,7 @@ const commitDOM = () => {
     commit(fiber)
   })
   commit(wipRoot.children)
-  currenRoot = wipRoot
+  currentRoot = wipRoot
   wipRoot = null
 }
 const commit = (fiber) => {
@@ -44,29 +44,30 @@ const parentRemoveDom = (fiber, parentDom) => {
 const isEvent = (key) => key.startsWith('on')
 const updateDom = (dom, prevProps, nextProps) => {
   Object.keys(prevProps)
-    .filter(isEvent)
-    .filter((key) => !(key in nextProps) || prevProps[key] !== nextProps[key])
-    .forEach((key) => {
-      const name = key.toLowerCase().substring(2)
-      dom.removeEventListener(name, prevProps[key])
-    })
-  Object.keys(nextProps)
-    .filter(isEvent)
-    .filter((key) => nextProps[key] !== prevProps[key])
-    .forEach((key) => {
-      const name = key.toLowerCase().substring(2)
-      dom.addEventListener(name, nextProps[key])
-    })
-
-  Object.keys(prevProps)
-    .filter((key) => key !== 'children')
+    .filter((key) => key !== 'children' && !isEvent(key))
     .filter((key) => !(key in nextProps))
     .forEach((key) => (dom[key] = ''))
 
   Object.keys(nextProps)
-    .filter((key) => key !== 'children')
+    .filter((key) => key !== 'children' && !isEvent(key))
     .filter((key) => nextProps[key] !== prevProps[key])
     .forEach((key) => (dom[key] = nextProps[key]))
+
+  Object.keys(prevProps)
+    .filter(isEvent)
+    .filter((key) => !key in nextProps || prevProps[key] !== nextProps[key])
+    .forEach((key) => {
+      const eventType = key.toLowerCase().substring(2)
+      dom.removeEventListener(eventType, prevProps[key])
+    })
+
+  Object.keys(nextProps)
+    .filter(isEvent)
+    .filter((key) => prevProps[key] !== nextProps[key])
+    .forEach((key) => {
+      const eventType = key.toLowerCase().substring(2)
+      dom.addEventListener(eventType, nextProps[key])
+    })
 }
 const render = (element, container) => {
   wipRoot = {
@@ -74,7 +75,7 @@ const render = (element, container) => {
     props: {
       children: [element],
     },
-    alternate: currenRoot,
+    alternate: currentRoot,
   }
   deleteList = []
   nextUnitOfWork = wipRoot
@@ -82,7 +83,7 @@ const render = (element, container) => {
 
 let nextUnitOfWork = null,
   wipRoot = null,
-  currenRoot = null,
+  currentRoot = null,
   deleteList = null
 const wordloop = (deadline) => {
   let shouldYield = false
@@ -111,9 +112,40 @@ const updateHostComponent = (fiber) => {
   const children = fiber.props.children
   reconcileChildren(fiber, children)
 }
+let wipFiber = null,
+  hookIndex = null
 const updateFunctionComponent = (fiber) => {
+  wipFiber = fiber
+  hookIndex = 0
+  wipFiber.hooks = []
+
   const children = [fiber.type(fiber.props)]
   reconcileChildren(fiber, children)
+}
+export const useState = (init) => {
+  const oldHook =
+    wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex]
+  const hook = {
+    state: oldHook ? oldHook.state : init,
+    queue: [],
+  }
+  const actions = oldHook ? oldHook.queue : []
+  actions.forEach((action) => {
+    hook.state = action(hook.state)
+  })
+  const setState = (action) => {
+    hook.queue.push(action)
+    wipRoot = {
+      dom: currentRoot.dom,
+      props: currentRoot.props,
+      alternate: currentRoot,
+    }
+    nextUnitOfWork = wipRoot
+    deleteList = []
+  }
+  wipFiber.hooks.push(hook)
+  hookIndex++
+  return [hook.state, setState]
 }
 const reconcileChildren = (wipFiber, elements) => {
   let index = 0,

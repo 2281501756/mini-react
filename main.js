@@ -1,11 +1,28 @@
 import createElement from './src/createElement'
-import render from './src/render'
+import render, { useState } from './src/render'
 
 const handleInput = (e) => {
   r(e.target.value)
 }
+
 const input = (props) => {
   return createElement('div', { style: 'color: ' + props.color }, 'function component')
+}
+const app = (props) => {
+  const [value, setValue] = useState(0)
+  const handle = () => {
+    setValue((prev) => {
+      return prev + 1
+    })
+  }
+  return createElement(
+    'div',
+    {
+      style: 'color: red',
+      onclick: handle,
+    },
+    value
+  )
 }
 
 // const r = (value) => {
@@ -23,13 +40,4 @@ const input = (props) => {
 
 // r('hello world')
 
-render(
-  createElement(
-    'div',
-    { style: 'color: blue' },
-    123,
-    createElement(input, { color: 'red' }),
-    createElement('div', null, 333333),
-  ),
-  document.querySelector('#app')
-)
+render(createElement(app), document.querySelector('#app'))
